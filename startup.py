@@ -38,4 +38,38 @@ business_consultant = Agent(
     allow_delegation=True,  # enable collaboration between agent
 )
 
-agent3 = Agent()
+task1 = Task(
+    description="""Analyze what the market demand for plugs for holes in crocs (shoes) so that this iconic footware looks less like swiss cheese. 
+		Write a detailed report with description of what the ideal customer might look like, and how to reach the widest possible audience.
+    """,
+    agent=marketer,
+    expected_output="The report has to be concise with at least 10 bullet points and it has to address the most important areas when it comes to marketing this type of business.",
+)
+
+task2 = Task(
+    description="""Analyze how to produce plugs for crocs (shoes) so that this iconic footware looks less like swiss cheese.. Write a detailed report 
+		with description of which technologies the business needs to use in order to make High Quality T shirts. 
+    """,
+    agent=technologist,
+    expected_output="The report has to be concise with at least 10  bullet points and it has to address the most important areas when it comes to manufacturing this type of business.",
+)
+
+task3 = Task(
+    description="""Analyze and summarize marketing and technological report and write a detailed business plan with 
+		description of how to make a sustainable and profitable "plugs for crocs (shoes) so that this iconic footware looks less like swiss cheese" business.
+    """,
+    agent=business_consultant,
+    expected_output="The business plan has to be concise with at least 10 bullet points, 5 goals and it has to contain a time schedule for which goal should be achieved and when.",
+)
+
+crew = Crew(
+    agents=[marketer, technologist, business_consultant],
+    tasks=[task1, task2, task3],
+    verbose=2,
+    process=Process.sequential,
+)
+
+result = crew.kickoff()
+
+print("###############")
+print(result)
