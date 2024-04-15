@@ -1,43 +1,68 @@
+import praw
+import time
 import os
 
+from langchain.tools import tool
+from langchain.agents import load_tools
 from crewai import Agent, Task, Process, Crew
 
-from langchain.agents import Tool
-from langchain.agents import load_tools
-from langchain_community.utilities import GoogleSerperAPIWrapper
-
-serper_api_key = os.environ.get("SERPER_API_KEY")
-
-search = GoogleSerperAPIWrapper()
-
-search_tool = Tool(
-    name="Google Scraper Tool",
-    func=search.run,
-    description="useful for when you need to ask the agent to search the internet",
-)
-
-# Loading Human Tools
+# To load human in the loop
 human_tools = load_tools(["human"])
 
 # To load GPT-4
 api = os.environ.get("OPENAI_API_KEY")
 
+
+class BrowserTool:
+    @tool("Scrape reddit content")
+    def scrape_reddit(max_comments_per_post=7):
+        """Useful to scrape a reddit content"""
+        reddit = praw.Reddit(
+            client_id="client-id",
+            client_secret="client-secret",
+            user_agent="user-agent",
+        )
+        subreddit = reddit.subreddit("LocalLLaMA")
+        scraped_data = []
+
+        for post in subreddit.hot(limit=12):
+            post_data = {"title": post.title, "url": post.url, "comments": []}
+
+            try:
+                post.comments.replace_more(limit=0)  # Load top-level comments only
+                comments = post.comments.list()
+                if max_comments_per_post is not None:
+                    comments = comments[:7]
+
+                for comment in comments:
+                    post_data["comments"].append(comment.body)
+
+                scraped_data.append(post_data)
+
+            except praw.exceptions.APIException as exc:
+                print(f"API Exception: {exc}")
+                time.sleep(60)  # Sleep for 1 minute before retrying
+
+        return scraped_data
+
+
 """
-- define agents that are going to research latest AI tools and write a blog about it 
-- explorer will use access to internet to get all the latest news
-- writer will write drafts 
+- define agents that are going to research latest AI tools and write a blog about it
+- explorer will use access to internet and LocalLLama subreddit to get all the latest news
+- writer will write drafts
 - critique will provide feedback and make sure that the blog text is engaging and easy to understand
 """
+
 explorer = Agent(
     role="Senior Researcher",
-    goal="Find and explore the most exciting projects and companies in the AI and machine learning space in 2024",
+    goal="Find and explore the most exciting projects and companies on LocalLLama subreddit in 2024",
     backstory="""You are and Expert strategist that knows how to spot emerging trends and companies in AI, tech and machine learning. 
     You're great at finding interesting, exciting projects on LocalLLama subreddit. You turned scraped data into detailed reports with names
-    of most exciting projects an companies in the AI/ML world. ONLY use scraped data from the internet for the report.
+    of most exciting projects an companies in the ai/ml world. ONLY use scraped data from LocalLLama subreddit for the report.
     """,
     verbose=True,
     allow_delegation=False,
-    tools=[search_tool],
+    tools=[BrowserTool().scrape_reddit] + human_tools,
 )
 
 writer = Agent(
@@ -45,7 +70,7 @@ writer = Agent(
     goal="Write engaging and interesting blog post about latest AI projects using simple, layman vocabulary",
     backstory="""You are an Expert Writer on technical innovation, especially in the field of AI and machine learning. You know how to write in 
     engaging, interesting but simple, straightforward and concise. You know how to present complicated technical terms to general audience in a 
-    fun way by using layman words. ONLY use scraped data from the internet for the blog.""",
+    fun way by using layman words.ONLY use scraped data from LocalLLama subreddit for the blog.""",
     verbose=True,
     allow_delegation=True,
 )
@@ -62,13 +87,11 @@ critic = Agent(
 )
 
 task_report = Task(
-    description="""Use and summarize scraped data from the internet to make a detailed report on the latest rising projects in AI. Use ONLY 
-    scraped data to generate the report. Your final answer MUST be a full analysis report, text only, ignore any code or anything that 
-    isn't text. The report has to have bullet points and with 5-10 exciting new AI projects and tools. Write names of every tool and project. 
-    Each bullet point MUST contain 3 sentences that refer to one specific AI company, product, model or anything you found on the internet.  
+    description="""Use and summarize scraped data from subreddit LocalLLama to make a detailed report on the latest rising projects in AI. Use ONLY 
+    scraped data from LocalLLama to generate the report.  
     """,
     agent=explorer,
-    expected_output="Your final answer MUST be a full analysis report, text only, ignore any code or anything that isn't text. The report has to have bullet points and with 5-10 exciting new AI projects and tools.",
+    expected_output="Your final answer MUST be a full analysis report, text only, ignore any code or anything that isn't text. The report has to have bullet points and with 5-10 exciting new AI projects and tools. Write names of every tool and project. Each bullet point MUST contain 3 sentences that refer to one specific ai company, product, model or anything you found on subreddit LocalLLama. ",
 )
 
 task_blog = Task(
